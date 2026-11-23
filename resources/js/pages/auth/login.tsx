@@ -1,7 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
-
+import { AppIcon } from '@/components/common/app-icon';
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
@@ -9,6 +6,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
+import { Head, useForm } from '@inertiajs/react';
+import { ArrowRight, Loader2, Lock, Mail } from 'lucide-react';
+import { FormEventHandler } from 'react';
 
 interface LoginForm {
     email: string;
@@ -36,69 +36,99 @@ export default function Login({ status, canResetPassword }: LoginProps) {
     };
 
     return (
-        <AuthLayout title="Log in to your account" description="Enter your email and password below to log in">
-            <Head title="Log in" />
+        <AuthLayout title="Sign In" description="Authenticate to access your Yeastar PBX and Bitrix24 workspace">
+            <Head title="Log In" />
 
-            <form className="flex flex-col gap-6" onSubmit={submit}>
-                <div className="grid gap-6">
+            {status && (
+                <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    {status}
+                </div>
+            )}
+
+            <form className="flex flex-col gap-5" onSubmit={submit}>
+                <div className="grid gap-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="email">Email address</Label>
-                        <Input
-                            id="email"
-                            type="email"
-                            required
-                            autoFocus
-                            tabIndex={1}
-                            autoComplete="email"
-                            value={data.email}
-                            onChange={(e) => setData('email', e.target.value)}
-                            placeholder="email@example.com"
-                        />
+                        <Label htmlFor="email" className="text-xs font-medium">Email Address</Label>
+                        <div className="relative">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                                <AppIcon icon={Mail} size="xs" />
+                            </div>
+                            <Input
+                                id="email"
+                                type="email"
+                                required
+                                autoFocus
+                                tabIndex={1}
+                                autoComplete="email"
+                                value={data.email}
+                                onChange={(e) => setData('email', e.target.value)}
+                                placeholder="name@company.com"
+                                className="pl-9 h-10"
+                            />
+                        </div>
                         <InputError message={errors.email} />
                     </div>
 
                     <div className="grid gap-2">
-                        <div className="flex items-center">
-                            <Label htmlFor="password">Password</Label>
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="password" className="text-xs font-medium">Password</Label>
                             {canResetPassword && (
-                                <TextLink href={route('password.request')} className="ml-auto text-sm" tabIndex={5}>
+                                <TextLink href={route('password.request')} className="text-xs" tabIndex={5}>
                                     Forgot password?
                                 </TextLink>
                             )}
                         </div>
-                        <Input
-                            id="password"
-                            type="password"
-                            required
-                            tabIndex={2}
-                            autoComplete="current-password"
-                            value={data.password}
-                            onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
-                        />
+                        <div className="relative">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                                <AppIcon icon={Lock} size="xs" />
+                            </div>
+                            <Input
+                                id="password"
+                                type="password"
+                                required
+                                tabIndex={2}
+                                autoComplete="current-password"
+                                value={data.password}
+                                onChange={(e) => setData('password', e.target.value)}
+                                placeholder="Enter your password"
+                                className="pl-9 h-10"
+                            />
+                        </div>
                         <InputError message={errors.password} />
                     </div>
 
-                    <div className="flex items-center space-x-3">
-                        <Checkbox id="remember" name="remember" tabIndex={3} />
-                        <Label htmlFor="remember">Remember me</Label>
+                    <div className="flex items-center space-x-2 pt-1">
+                        <Checkbox
+                            id="remember"
+                            name="remember"
+                            tabIndex={3}
+                            checked={data.remember}
+                            onCheckedChange={(checked) => setData('remember', checked === true)}
+                        />
+                        <Label htmlFor="remember" className="text-xs text-muted-foreground font-normal cursor-pointer">
+                            Keep me signed in on this device
+                        </Label>
                     </div>
 
-                    <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing}>
-                        {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        Log in
+                    <Button type="submit" className="mt-2 w-full h-10 gap-2 font-medium" tabIndex={4} disabled={processing}>
+                        {processing ? (
+                            <AppIcon icon={Loader2} size="sm" className="animate-spin" />
+                        ) : (
+                            <>
+                                <span>Sign In</span>
+                                <AppIcon icon={ArrowRight} size="xs" />
+                            </>
+                        )}
                     </Button>
                 </div>
 
-                <div className="text-muted-foreground text-center text-sm">
-                    Don't have an account?{' '}
-                    <TextLink href={route('register')} tabIndex={5}>
-                        Sign up
+                <div className="text-center text-xs text-muted-foreground">
+                    Need an account?{' '}
+                    <TextLink href={route('register')} tabIndex={5} className="font-semibold text-foreground">
+                        Register workspace
                     </TextLink>
                 </div>
             </form>
-
-            {status && <div className="mb-4 text-center text-sm font-medium text-green-600">{status}</div>}
         </AuthLayout>
     );
 }

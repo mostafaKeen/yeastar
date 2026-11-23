@@ -1,12 +1,12 @@
-import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
-
+import { AppIcon } from '@/components/common/app-icon';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
+import { Head, useForm } from '@inertiajs/react';
+import { ArrowRight, Loader2, Lock } from 'lucide-react';
+import { FormEventHandler } from 'react';
 
 interface ResetPasswordProps {
     token: string;
@@ -36,60 +36,75 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
     };
 
     return (
-        <AuthLayout title="Reset password" description="Please enter your new password below">
-            <Head title="Reset password" />
+        <AuthLayout title="Choose New Password" description="Enter your updated credentials to regain access to your workspace">
+            <Head title="Reset Password" />
 
-            <form onSubmit={submit}>
-                <div className="grid gap-6">
+            <form onSubmit={submit} className="flex flex-col gap-4">
+                <div className="grid gap-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email" className="text-xs font-medium">Email Address</Label>
                         <Input
                             id="email"
                             type="email"
                             name="email"
                             autoComplete="email"
                             value={data.email}
-                            className="mt-1 block w-full"
                             readOnly
-                            onChange={(e) => setData('email', e.target.value)}
+                            className="bg-muted text-muted-foreground h-10"
                         />
-                        <InputError message={errors.email} className="mt-2" />
+                        <InputError message={errors.email} />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="password">Password</Label>
-                        <Input
-                            id="password"
-                            type="password"
-                            name="password"
-                            autoComplete="new-password"
-                            value={data.password}
-                            className="mt-1 block w-full"
-                            autoFocus
-                            onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
-                        />
+                        <Label htmlFor="password" className="text-xs font-medium">New Password</Label>
+                        <div className="relative">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                                <AppIcon icon={Lock} size="xs" />
+                            </div>
+                            <Input
+                                id="password"
+                                type="password"
+                                name="password"
+                                autoComplete="new-password"
+                                value={data.password}
+                                autoFocus
+                                onChange={(e) => setData('password', e.target.value)}
+                                placeholder="Enter new password"
+                                className="pl-9 h-10"
+                            />
+                        </div>
                         <InputError message={errors.password} />
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="password_confirmation">Confirm password</Label>
-                        <Input
-                            id="password_confirmation"
-                            type="password"
-                            name="password_confirmation"
-                            autoComplete="new-password"
-                            value={data.password_confirmation}
-                            className="mt-1 block w-full"
-                            onChange={(e) => setData('password_confirmation', e.target.value)}
-                            placeholder="Confirm password"
-                        />
-                        <InputError message={errors.password_confirmation} className="mt-2" />
+                        <Label htmlFor="password_confirmation" className="text-xs font-medium">Confirm New Password</Label>
+                        <div className="relative">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                                <AppIcon icon={Lock} size="xs" />
+                            </div>
+                            <Input
+                                id="password_confirmation"
+                                type="password"
+                                name="password_confirmation"
+                                autoComplete="new-password"
+                                value={data.password_confirmation}
+                                onChange={(e) => setData('password_confirmation', e.target.value)}
+                                placeholder="Re-enter new password"
+                                className="pl-9 h-10"
+                            />
+                        </div>
+                        <InputError message={errors.password_confirmation} />
                     </div>
 
-                    <Button type="submit" className="mt-4 w-full" disabled={processing}>
-                        {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        Reset password
+                    <Button type="submit" className="mt-2 w-full h-10 gap-2 font-medium" disabled={processing}>
+                        {processing ? (
+                            <AppIcon icon={Loader2} size="sm" className="animate-spin" />
+                        ) : (
+                            <>
+                                <span>Save New Password</span>
+                                <AppIcon icon={ArrowRight} size="xs" />
+                            </>
+                        )}
                     </Button>
                 </div>
             </form>
