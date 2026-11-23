@@ -20,6 +20,16 @@ echo "[1/6] Pulling latest code from origin/$BRANCH..."
 git fetch origin "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 
+if ! grep -q "^APP_KEY=base64:" .env 2>/dev/null; then
+    echo "Generating Application Encryption Key for .env..."
+    RANDOM_KEY=$(openssl rand -base64 32)
+    if grep -q "^APP_KEY=" .env; then
+        sed -i "s|^APP_KEY=.*|APP_KEY=base64:${RANDOM_KEY}|" .env
+    else
+        echo "APP_KEY=base64:${RANDOM_KEY}" >> .env
+    fi
+fi
+
 echo "[2/6] Building and starting Docker containers..."
 docker compose up -d --build
 
@@ -46,6 +56,7 @@ docker compose exec -T yeastar-app php artisan optimize:clear
 docker compose exec -T yeastar-app php artisan config:cache
 docker compose exec -T yeastar-app php artisan route:cache
 docker compose exec -T yeastar-app php artisan view:cache
+docker compose exec -T yeastar-app supervisorctl restart php-fpm
 docker compose exec -T yeastar-app php artisan queue:restart
 
 echo "[6/6] Running readiness check and cleaning dangling images..."
