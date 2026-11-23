@@ -1,0 +1,17 @@
+node_modules
+.git
+.github
+tests
+storage/*.key
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+public/hot
+.env
+.env.backup
+.phpunit.result.cache
+npm-debug.log
+yarn-error.log
+.DS_Store
+Thumbs.db
