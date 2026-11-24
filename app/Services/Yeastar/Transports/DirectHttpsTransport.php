@@ -39,6 +39,7 @@ class DirectHttpsTransport implements YeastarTransportInterface
 
         $client = Http::timeout($timeout)
             ->acceptJson()
+            ->withUserAgent('OpenAPI')
             ->withQueryParameters(['access_token' => $connection->access_token_enc]);
 
         /** @var Response $response */
@@ -103,6 +104,7 @@ class DirectHttpsTransport implements YeastarTransportInterface
             /** @var Response $response */
             $response = Http::timeout((int) config('telephony.yeastar.http_timeout_seconds', 15))
                 ->acceptJson()
+                ->withUserAgent('OpenAPI')
                 ->asJson()
                 ->post("{$baseUrl}/openapi/v1.0/get_token", [
                     'username' => $active->client_id,

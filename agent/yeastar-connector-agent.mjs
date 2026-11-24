@@ -63,7 +63,11 @@ async function ensurePbxToken() {
 
     const res = await fetch(`${PBX_URL}/openapi/v1.0/get_token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'User-Agent': 'OpenAPI',
+        },
         body: JSON.stringify({ username: PBX_CLIENT_ID, password: PBX_CLIENT_SECRET }),
     });
 
@@ -83,7 +87,13 @@ async function callLocalPbx(method, path, payload = {}) {
     url.searchParams.set('access_token', token);
 
     const upper = method.toUpperCase();
-    const init = { method: upper, headers: { Accept: 'application/json' } };
+    const init = {
+        method: upper,
+        headers: {
+            Accept: 'application/json',
+            'User-Agent': 'OpenAPI',
+        },
+    };
 
     if (upper === 'GET') {
         for (const [k, v] of Object.entries(payload || {})) {
