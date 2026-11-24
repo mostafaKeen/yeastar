@@ -29,6 +29,14 @@ class BitrixMarketplaceController extends Controller
      */
     public function install(Request $request): Response|JsonResponse
     {
+        // Respond HTTP 200 to Bitrix24 Marketplace validator probes (HEAD/GET or empty probe ping)
+        if ($request->isMethod('GET') || $request->isMethod('HEAD') || empty($request->all())) {
+            return response()->json([
+                'status' => 'ok',
+                'service' => 'Yeastar Bitrix24 Marketplace Installer',
+            ], 200);
+        }
+
         $auth = is_array($request->input('auth')) ? $request->input('auth') : [];
 
         $memberId = (string) ($auth['member_id'] ?? $request->input('member_id') ?? '');

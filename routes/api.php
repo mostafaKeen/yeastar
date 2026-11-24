@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 // Bitrix24 Marketplace App Lifecycle & Telephony Event Receivers
 Route::prefix('bitrix')->middleware('throttle:bitrix-webhooks')->name('api.bitrix.')->group(function () {
-    Route::post('install', [BitrixMarketplaceController::class, 'install'])->name('install');
+    Route::match(['get', 'post', 'head'], 'install', [BitrixMarketplaceController::class, 'install'])->name('install');
 
     Route::middleware('bitrix.event')->group(function () {
         Route::post('uninstall', [BitrixMarketplaceController::class, 'uninstall'])->name('uninstall');
