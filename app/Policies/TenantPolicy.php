@@ -23,12 +23,12 @@ class TenantPolicy
 
     public function manageIntegrations(User $user, Tenant $tenant): bool
     {
-        return $user->roleFor($tenant)?->canManageIntegrations() ?? false;
+        return $user->belongsToTenant($tenant);
     }
 
     public function manageSecurity(User $user, Tenant $tenant): bool
     {
-        return $user->roleFor($tenant)?->canManageSecurity() ?? false;
+        return $user->belongsToTenant($tenant);
     }
 
     public function viewAllCalls(User $user, Tenant $tenant): bool
