@@ -27,9 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'yeastar.agent' => VerifyYeastarAgentMiddleware::class,
         ]);
 
-        // Bitrix24 loads embedded Marketplace apps via cross-origin POST into an iframe
+        // Bitrix24 loads embedded Marketplace apps and webhooks via cross-origin POST
         $middleware->validateCsrfTokens(except: [
-            'bitrix/app',
+            'bitrix/*',
         ]);
 
         $middleware->prependToPriorityList(

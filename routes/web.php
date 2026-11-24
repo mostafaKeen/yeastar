@@ -20,6 +20,14 @@ Route::get('/', function () {
 Route::match(['get', 'post'], 'bitrix/app', [BitrixIframeController::class, 'entry'])
     ->name('bitrix.embed');
 
+// Bitrix24 Marketplace Lifecycle Fallback Aliases (works both with and without /api prefix)
+Route::post('bitrix/install', [\App\Http\Controllers\BitrixMarketplaceController::class, 'install'])
+    ->middleware('throttle:bitrix-webhooks');
+Route::post('bitrix/uninstall', [\App\Http\Controllers\BitrixMarketplaceController::class, 'uninstall'])
+    ->middleware(['throttle:bitrix-webhooks', 'bitrix.event']);
+Route::post('bitrix/events', [\App\Http\Controllers\BitrixMarketplaceController::class, 'events'])
+    ->middleware(['throttle:bitrix-webhooks', 'bitrix.event']);
+
 Route::middleware(['auth', 'tenant'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
