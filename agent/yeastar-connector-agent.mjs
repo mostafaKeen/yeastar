@@ -5,23 +5,51 @@
  * Bridges a private-LAN Yeastar P-Series PBX behind corporate NAT to the
  * multi-tenant Bitrix24-Yeastar SaaS control plane with zero inbound firewall ports.
  *
- * Required environment variables:
- *   SAAS_URL           e.g. https://telephony.your-domain.com
- *   AGENT_TOKEN        One-time bearer token generated in Integrations (ysa_...)
- *   PBX_URL            Local LAN PBX URL, e.g. https://192.168.1.150:8088
- *   PBX_CLIENT_ID      Yeastar P-Series Open API Client ID
- *   PBX_CLIENT_SECRET  Yeastar P-Series Open API Client Secret
+ * Accepts CLI arguments or environment variables:
+ *   --saas-url=https://yeastar.keenenter.com
+ *   --agent-token=ysa_...
+ *   --pbx-url=https://10.255.254.200:8088
+ *   --client-id=...
+ *   --client-secret=...
  */
 
-const SAAS_URL = (process.env.SAAS_URL || '').replace(/\/+$/, '');
-const AGENT_TOKEN = process.env.AGENT_TOKEN || '';
-const PBX_URL = (process.env.PBX_URL || '').replace(/\/+$/, '');
-const PBX_CLIENT_ID = process.env.PBX_CLIENT_ID || '';
-const PBX_CLIENT_SECRET = process.env.PBX_CLIENT_SECRET || '';
-const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
+// Parse CLI flags and environment variables
+const args = process.argv.slice(2);
+function getArg(name, envVar, fallback = '') {
+    for (const arg of args) {
+        if (arg.startsWith(`--${name}=`)) {
+            return arg.slice(name.length + 3).trim();
+        }
+    }
+    return (process.env[envVar] || fallback).trim();
+}
+
+const SAAS_URL = (getArg('saas-url', 'SAAS_URL') || getArg('cloud-url', 'CLOUD_URL')).replace(/\/+$/, '');
+const AGENT_TOKEN = getArg('agent-token', 'AGENT_TOKEN') || getArg('token', 'TOKEN');
+const PBX_URL = getArg('pbx-url', 'PBX_URL').replace(/\/+$/, '');
+const PBX_CLIENT_ID = getArg('client-id', 'PBX_CLIENT_ID') || getArg('pbx-client-id', 'PBX_CLIENT_ID');
+const PBX_CLIENT_SECRET = getArg('client-secret', 'PBX_CLIENT_SECRET') || getArg('pbx-client-secret', 'PBX_CLIENT_SECRET');
+const POLL_INTERVAL_MS = Number(getArg('poll-interval', 'POLL_INTERVAL_MS', '2000'));
+
+// Local PBXs on private IPs (10.x, 192.168.x, 172.16-31.x) use self-signed TLS certificates
+const isPrivateIp = /^https:\/\/(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.)/i.test(PBX_URL);
+if (isPrivateIp || args.includes('--insecure') || process.env.ALLOW_INSECURE === '1') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 if (!SAAS_URL || !AGENT_TOKEN || !PBX_URL || !PBX_CLIENT_ID || !PBX_CLIENT_SECRET) {
-    console.error('[agent] Missing required env vars: SAAS_URL, AGENT_TOKEN, PBX_URL, PBX_CLIENT_ID, PBX_CLIENT_SECRET');
+    console.error(`
+Usage:
+  node agent/yeastar-connector-agent.mjs \\
+    --saas-url="https://yeastar.keenenter.com" \\
+    --agent-token="<AGENT_TOKEN>" \\
+    --pbx-url="https://10.255.254.200:8088" \\
+    --client-id="<CLIENT_ID>" \\
+    --client-secret="<CLIENT_SECRET>"
+
+Or set environment variables:
+  SAAS_URL, AGENT_TOKEN, PBX_URL, PBX_CLIENT_ID, PBX_CLIENT_SECRET
+`);
     process.exit(1);
 }
 
