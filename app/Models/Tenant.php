@@ -78,6 +78,13 @@ class Tenant extends Model
         return $this->plan_tier === 'enterprise' ? 250 : 50;
     }
 
+    public function hasMember(User|int $user): bool
+    {
+        $userId = $user instanceof User ? $user->id : $user;
+
+        return $this->users()->where('users.id', $userId)->exists();
+    }
+
     public function addMember(User $user, TenantRole $role = TenantRole::Agent, bool $isDefault = false): void
     {
         $this->users()->syncWithoutDetaching([

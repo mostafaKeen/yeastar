@@ -3,15 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ConnectionStatus;
+use App\Enums\TenantRole;
+use App\Http\Middleware\ResolveTenantMiddleware;
 use App\Models\BitrixConnection;
 use App\Models\CallLog;
 use App\Models\ExtensionMapping;
 use App\Models\ExternalLine;
+use App\Models\Tenant;
+use App\Models\User;
 use App\Models\YeastarConnection;
 use App\Security\SsrfGuard;
 use App\Tenancy\TenantContext;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -92,6 +101,7 @@ class BitrixIframeController extends Controller
             $b24User = [
                 'id' => (string) $payload['result']['ID'],
                 'name' => trim(((string) ($payload['result']['NAME'] ?? '')).' '.((string) ($payload['result']['LAST_NAME'] ?? ''))),
+                'email' => ! empty($payload['result']['EMAIL']) ? strtolower(trim((string) $payload['result']['EMAIL'])) : null,
                 'is_admin' => (bool) ($payload['result']['ADMIN'] ?? false),
             ];
         } catch (Throwable $e) {
@@ -102,6 +112,46 @@ class BitrixIframeController extends Controller
         }
 
         return $this->tenantContext->runFor($connection->tenant_id, function () use ($connection, $b24User): Response {
+            $tenant = Tenant::query()->find($connection->tenant_id);
+            abort_if($tenant === null, 404, 'Tenant workspace not found.');
+
+            // Find or provision local user for seamless SSO launch
+            $userEmail = $b24User['email'] ?? "b24_user_{$b24User['id']}@{$connection->domain}";
+            $user = User::query()->firstOrCreate(
+                ['email' => $userEmail],
+                [
+                    'name' => $b24User['name'] ?: "Bitrix24 User #{$b24User['id']}",
+                    'password' => Hash::make(Str::random(32)),
+                    'is_super_admin' => (bool) ($b24User['is_admin'] ?? false),
+                    'email_verified_at' => now(),
+                ]
+            );
+
+            if (! $tenant->hasMember($user)) {
+                $role = $b24User['is_admin'] ? TenantRole::Owner : TenantRole::Agent;
+                $tenant->addMember($user, $role, isDefault: true);
+            }
+
+            // Generate cryptographically signed single-sign-on launch URLs valid for 2 hours
+            $launchExpiry = now()->addHours(2);
+            $consoleUrls = [
+                'dashboard' => URL::temporarySignedRoute('bitrix.launch', $launchExpiry, [
+                    'user' => $user->id,
+                    'tenant' => $tenant->id,
+                    'target' => 'dashboard',
+                ]),
+                'onboarding' => URL::temporarySignedRoute('bitrix.launch', $launchExpiry, [
+                    'user' => $user->id,
+                    'tenant' => $tenant->id,
+                    'target' => 'onboarding',
+                ]),
+                'mappings' => URL::temporarySignedRoute('bitrix.launch', $launchExpiry, [
+                    'user' => $user->id,
+                    'tenant' => $tenant->id,
+                    'target' => 'mappings',
+                ]),
+            ];
+
             $pbxList = YeastarConnection::query()
                 ->orderBy('name')
                 ->get(['id', 'name', 'transport_mode', 'firmware_version', 'agent_status', 'status'])
@@ -130,12 +180,40 @@ class BitrixIframeController extends Controller
                     'external_lines' => ExternalLine::query()->where('is_active', true)->count(),
                     'calls_24h' => CallLog::query()->where('started_at', '>=', $since)->count(),
                 ],
-                'consoleUrls' => [
-                    'dashboard' => route('dashboard'),
-                    'onboarding' => route('onboarding.index'),
-                    'mappings' => route('mappings.index'),
-                ],
+                'consoleUrls' => $consoleUrls,
             ]);
         });
+    }
+
+    /**
+     * Authenticate and launch a direct console tab from a signed Bitrix24 iframe SSO token.
+     */
+    public function launch(Request $request): RedirectResponse
+    {
+        abort_unless($request->hasValidSignature(), 403, 'The launch token has expired or is invalid.');
+
+        $userId = (int) $request->query('user');
+        $tenantId = (string) $request->query('tenant');
+        $target = (string) $request->query('target', 'dashboard');
+
+        $user = User::query()->findOrFail($userId);
+        $tenant = Tenant::query()->findOrFail($tenantId);
+
+        abort_unless($tenant->hasMember($user), 403, 'User does not belong to this tenant workspace.');
+
+        Auth::login($user, remember: true);
+        $request->session()->regenerate();
+        $request->session()->put(ResolveTenantMiddleware::SESSION_KEY, $tenant->id);
+
+        $destination = match ($target) {
+            'onboarding' => route('onboarding.index'),
+            'mappings' => route('mappings.index'),
+            'calls' => route('calls.index'),
+            'integrations' => route('integrations.index'),
+            'security' => route('security.index'),
+            default => route('dashboard'),
+        };
+
+        return redirect()->to($destination);
     }
 }

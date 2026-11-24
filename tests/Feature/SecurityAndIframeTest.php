@@ -169,6 +169,25 @@ class SecurityAndIframeTest extends TestCase
         $body = $response->getContent() ?: '';
         $this->assertStringContainsString('embed.bitrix24.com', $body);
         $this->assertStringNotContainsString('super_secret_b24_token', $body);
+
+        // Verify signed SSO launch URL provisions user and logs in directly
+        $nina = User::query()->where('email', 'b24_user_7@embed.bitrix24.com')->first();
+        $this->assertNotNull($nina);
+        $this->assertTrue($tenant->hasMember($nina));
+
+        $launchUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute('bitrix.launch', now()->addMinutes(15), [
+            'user' => $nina->id,
+            'tenant' => $tenant->id,
+            'target' => 'dashboard',
+        ]);
+
+        $launchResponse = $this->get($launchUrl);
+        $launchResponse->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($nina);
+        $this->assertSame($tenant->id, session(ResolveTenantMiddleware::SESSION_KEY));
+
+        // Tampered signature is rejected
+        $this->get($launchUrl.'&tampered=true')->assertForbidden();
     }
 
     public function test_telephony_readiness_check_command_succeeds(): void

@@ -20,6 +20,10 @@ Route::get('/', function () {
 Route::match(['get', 'post'], 'bitrix/app', [BitrixIframeController::class, 'entry'])
     ->name('bitrix.embed');
 
+// Bitrix24 Single Sign-On (SSO) Console Launch
+Route::get('bitrix/launch', [BitrixIframeController::class, 'launch'])
+    ->name('bitrix.launch');
+
 // Bitrix24 Marketplace Lifecycle Fallback Aliases (works both with and without /api prefix)
 Route::match(['get', 'post', 'head'], 'bitrix/install', [\App\Http\Controllers\BitrixMarketplaceController::class, 'install'])
     ->middleware('throttle:bitrix-webhooks');
