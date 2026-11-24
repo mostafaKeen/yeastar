@@ -7,6 +7,15 @@ use App\Models\User;
 
 class TenantPolicy
 {
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->is_super_admin) {
+            return true;
+        }
+
+        return null;
+    }
+
     public function view(User $user, Tenant $tenant): bool
     {
         return $user->belongsToTenant($tenant);

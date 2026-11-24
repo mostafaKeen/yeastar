@@ -128,8 +128,14 @@ class BitrixIframeController extends Controller
             );
 
             if (! $tenant->hasMember($user)) {
-                $role = $b24User['is_admin'] ? TenantRole::Owner : TenantRole::Agent;
-                $tenant->addMember($user, $role, isDefault: true);
+                // Allow all company users accessing from this Bitrix24 portal full operational access
+                $tenant->addMember($user, TenantRole::Admin, isDefault: true);
+            } else {
+                // Elevate any existing restricted role so company users are not blocked with 403
+                $currentRole = $user->roleFor($tenant);
+                if ($currentRole === TenantRole::Agent) {
+                    $tenant->users()->updateExistingPivot($user->id, ['role' => TenantRole::Admin->value]);
+                }
             }
 
             // Generate cryptographically signed single-sign-on launch URLs valid for 2 hours
