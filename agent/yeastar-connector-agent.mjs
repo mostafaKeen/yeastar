@@ -536,30 +536,38 @@ async function callAmiPbx(method, path, payload = {}) {
         call.callerNumber = caller;
         call.calleeNumber = extenCandidates[0];
 
+        const channelCandidates = [
+            `Local/${caller}@DLPN_DialPlan${caller}`,
+            `PJSIP/${caller}`,
+        ];
+
         let origSuccess = false;
         let lastErrMsg = 'AMI Originate failed';
 
-        for (const ctx of contextCandidates) {
-            for (const exten of extenCandidates) {
-                const orig = await sendRawAmi('Originate', {
-                    Channel: `PJSIP/${caller}`,
-                    Context: ctx,
-                    Exten: exten,
-                    Priority: 1,
-                    CallerID: `"${exten}" <${caller}>`,
-                    ChannelId: callId,
-                    Async: 'true',
-                });
+        for (const ch of channelCandidates) {
+            for (const ctx of contextCandidates) {
+                for (const exten of extenCandidates) {
+                    const orig = await sendRawAmi('Originate', {
+                        Channel: ch,
+                        Context: ctx,
+                        Exten: exten,
+                        Priority: 1,
+                        CallerID: `"${exten}" <${caller}>`,
+                        ChannelId: callId,
+                        Async: 'true',
+                    });
 
-                if (orig.response?.Response === 'Success') {
-                    console.log(`[agent][ami] Originate queued via dialplan (Context: ${ctx}, Exten: ${exten})`);
-                    origSuccess = true;
-                    break;
+                    if (orig.response?.Response === 'Success') {
+                        console.log(`[agent][ami] Originate ringing ext ${caller} (Channel: ${ch}, Context: ${ctx}, Exten: ${exten})`);
+                        origSuccess = true;
+                        break;
+                    }
+                    lastErrMsg = orig.response?.Message || lastErrMsg;
+                    if (!/extension does not exist/i.test(lastErrMsg)) {
+                        break;
+                    }
                 }
-                lastErrMsg = orig.response?.Message || lastErrMsg;
-                if (!/extension does not exist/i.test(lastErrMsg)) {
-                    break;
-                }
+                if (origSuccess) break;
             }
             if (origSuccess) break;
         }
