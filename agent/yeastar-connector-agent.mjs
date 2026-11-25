@@ -481,21 +481,52 @@ async function callAmiPbx(method, path, payload = {}) {
     }
 
     if (path === '/call/dial') {
-        const caller = String(payload.caller || '').trim();
-        const callee = String(payload.callee || '').trim();
-        if (!caller || !callee) {
+        const caller = String(payload.caller || '').trim().replace(/[^\dA-Za-z_-]/g, '');
+        const rawCallee = String(payload.callee || '').trim();
+        const cleanedCallee = rawCallee.replace(/[^\d+]/g, '');
+        if (!caller || !cleanedCallee) {
             return { status: 400, data: { errcode: 400, errmsg: 'Missing caller or callee' } };
         }
 
-        let context = `DLPN_DialPlan${caller}`;
+        // Build ordered candidate dial strings (handles UAE +971 / 00971 / 971 -> 05xxxxxxxx local format)
+        const extenCandidates = [];
+        const addCandidate = (val) => {
+            if (val && !extenCandidates.includes(val)) extenCandidates.push(val);
+        };
+
+        const uaeMatch = /^(?:\+971|00971|971)(\d{8,9})$/.exec(cleanedCallee);
+        if (uaeMatch) {
+            addCandidate(`0${uaeMatch[1]}`);
+            addCandidate(`971${uaeMatch[1]}`);
+            addCandidate(`00971${uaeMatch[1]}`);
+            addCandidate(`+971${uaeMatch[1]}`);
+        } else {
+            addCandidate(cleanedCallee.replace(/^\+/, ''));
+            addCandidate(cleanedCallee);
+            if (cleanedCallee.startsWith('+')) {
+                addCandidate(`00${cleanedCallee.slice(1)}`);
+            }
+        }
+
+        let epContext = null;
+        let epState = 'Unknown';
         try {
             const detail = await sendRawAmi('PJSIPShowEndpoint', { Endpoint: caller }, 'EndpointDetailComplete', 5000);
             const ep = detail.events.find((e) => e.Event === 'EndpointDetail');
-            if (ep?.Context) {
-                context = ep.Context;
-            }
+            if (ep?.Context) epContext = ep.Context;
+            if (ep?.DeviceState) epState = ep.DeviceState;
         } catch {
-            // Use fallback context
+            // Fallback below
+        }
+
+        console.log(`[agent][ami] Click-to-Call request: ext ${caller} (state: ${epState}, context: ${epContext || 'auto'}) -> ${rawCallee} (candidates: ${extenCandidates.join(', ')})`);
+        if (/unavailable/i.test(epState)) {
+            console.warn(`[agent][ami] WARNING: Extension ${caller} is currently OFFLINE (Unavailable). Log into extension ${caller} on an IP phone or Yeastar Linkus app so it can ring!`);
+        }
+
+        const contextCandidates = [];
+        for (const ctx of [epContext, `DLPN_DialPlan${caller}`, 'from-internal', 'default']) {
+            if (ctx && !contextCandidates.includes(ctx)) contextCandidates.push(ctx);
         }
 
         const callId = `c2c_${crypto.randomUUID().slice(0, 12)}`;
@@ -503,23 +534,67 @@ async function callAmiPbx(method, path, payload = {}) {
         call.isClickToCall = true;
         call.direction = 'outbound';
         call.callerNumber = caller;
-        call.calleeNumber = callee;
+        call.calleeNumber = extenCandidates[0];
 
-        const orig = await sendRawAmi('Originate', {
-            Channel: `PJSIP/${caller}`,
-            Context: context,
-            Exten: callee,
-            Priority: 1,
-            CallerID: `"${callee}" <${caller}>`,
-            ChannelId: callId,
-            Async: 'true',
-        });
+        let origSuccess = false;
+        let lastErrMsg = 'AMI Originate failed';
 
-        if (orig.response?.Response === 'Error') {
-            return {
-                status: 502,
-                data: { errcode: 502, errmsg: orig.response.Message || 'AMI Originate failed' },
-            };
+        for (const ctx of contextCandidates) {
+            for (const exten of extenCandidates) {
+                const orig = await sendRawAmi('Originate', {
+                    Channel: `PJSIP/${caller}`,
+                    Context: ctx,
+                    Exten: exten,
+                    Priority: 1,
+                    CallerID: `"${exten}" <${caller}>`,
+                    ChannelId: callId,
+                    Async: 'true',
+                });
+
+                if (orig.response?.Response === 'Success') {
+                    console.log(`[agent][ami] Originate queued via dialplan (Context: ${ctx}, Exten: ${exten})`);
+                    origSuccess = true;
+                    break;
+                }
+                lastErrMsg = orig.response?.Message || lastErrMsg;
+                if (!/extension does not exist/i.test(lastErrMsg)) {
+                    break;
+                }
+            }
+            if (origSuccess) break;
+        }
+
+        // Fallback: Direct Application Dial if no dialplan context matched
+        if (!origSuccess) {
+            const dialTarget = extenCandidates[0];
+            let dialData = `PJSIP/${dialTarget},45`;
+
+            if (dialTarget.length > 5) {
+                try {
+                    const { events } = await sendRawAmi('PJSIPShowEndpoints', {}, 'EndpointListComplete', 6000);
+                    const trunkEp = events.find((e) => e.ObjectName && !isNumericExt(e.ObjectName) && e.ObjectName !== 'anonymous');
+                    if (trunkEp?.ObjectName) {
+                        dialData = `PJSIP/${dialTarget}@${trunkEp.ObjectName},60`;
+                    }
+                } catch {}
+            }
+
+            console.log(`[agent][ami] Dialplan context did not match (${lastErrMsg}); falling back to direct Application: Dial (${dialData})`);
+            const fallbackOrig = await sendRawAmi('Originate', {
+                Channel: `PJSIP/${caller}`,
+                Application: 'Dial',
+                Data: dialData,
+                CallerID: `"${dialTarget}" <${caller}>`,
+                ChannelId: callId,
+                Async: 'true',
+            });
+
+            if (fallbackOrig.response?.Response === 'Error') {
+                return {
+                    status: 502,
+                    data: { errcode: 502, errmsg: fallbackOrig.response.Message || lastErrMsg },
+                };
+            }
         }
 
         return {
