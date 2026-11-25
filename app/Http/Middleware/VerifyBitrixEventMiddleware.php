@@ -7,7 +7,9 @@ use App\Models\BitrixConnection;
 use App\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class VerifyBitrixEventMiddleware
 {
@@ -39,8 +41,40 @@ class VerifyBitrixEventMiddleware
                 ->first();
         });
 
-        if ($connection === null || ! $connection->verifyApplicationToken($applicationToken)) {
+        if ($connection === null) {
             return response()->json(['error' => 'Invalid Bitrix24 application token.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (! $connection->verifyApplicationToken($applicationToken)) {
+            $liveAccessToken = (string) ($request->input('auth.access_token') ?? '');
+            $healed = false;
+
+            if ($liveAccessToken !== '' && ! empty($connection->client_endpoint)) {
+                try {
+                    $verifyResp = Http::timeout(5)
+                        ->acceptJson()
+                        ->asJson()
+                        ->post(rtrim($connection->client_endpoint, '/').'/app.info.json', [
+                            'auth' => $liveAccessToken,
+                        ]);
+
+                    if ($verifyResp->successful() && is_array($verifyResp->json('result'))) {
+                        $this->tenantContext->withoutTenancy(static function () use ($connection, $applicationToken, $liveAccessToken): void {
+                            $connection->update([
+                                'application_token_enc' => $applicationToken,
+                                'access_token_enc' => $liveAccessToken,
+                            ]);
+                        });
+                        $healed = true;
+                    }
+                } catch (Throwable) {
+                    $healed = false;
+                }
+            }
+
+            if (! $healed) {
+                return response()->json(['error' => 'Invalid Bitrix24 application token.'], Response::HTTP_UNAUTHORIZED);
+            }
         }
 
         $this->tenantContext->setById($connection->tenant_id);

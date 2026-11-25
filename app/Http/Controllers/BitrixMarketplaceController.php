@@ -43,7 +43,7 @@ class BitrixMarketplaceController extends Controller
         $domain = (string) ($auth['domain'] ?? $request->input('DOMAIN') ?? $request->query('DOMAIN', ''));
         $accessToken = (string) ($auth['access_token'] ?? $request->input('AUTH_ID') ?? '');
         $refreshToken = (string) ($auth['refresh_token'] ?? $request->input('REFRESH_ID') ?? '');
-        $applicationToken = (string) ($auth['application_token'] ?? $request->input('APP_SID') ?? '');
+        $applicationToken = (string) ($auth['application_token'] ?? $request->input('APPLICATION_TOKEN') ?? $request->input('APP_SID') ?? '');
         $expiresIn = max(60, (int) ($auth['expires_in'] ?? $request->input('AUTH_EXPIRES') ?? 3600));
 
         if ($memberId === '' || $domain === '' || $accessToken === '') {
@@ -53,9 +53,9 @@ class BitrixMarketplaceController extends Controller
         $cleanDomain = preg_replace('#^https?://#i', '', trim($domain)) ?? $domain;
         $cleanDomain = rtrim($cleanDomain, '/');
         $clientEndpoint = (string) ($auth['client_endpoint'] ?? "https://{$cleanDomain}/rest/");
-        $serverEndpoint = (string) ($auth['server_endpoint'] ?? config('telephony.bitrix24.oauth_server', 'https://oauth.bitrix.info/rest/'));
+        $serverEndpoint = (string) ($auth['server_endpoint'] ?? $request->input('SERVER_ENDPOINT') ?? config('telephony.bitrix24.oauth_server', 'https://oauth.bitrix.info/rest/'));
         $portalType = preg_match('/\.bitrix24\.[a-z.]+$/i', $cleanDomain) === 1 ? 'cloud' : 'on_premise';
-        $scopes = array_values(array_filter(array_map('trim', explode(',', (string) ($auth['scope'] ?? 'telephony,crm,user_basic')))));
+        $scopes = array_values(array_filter(array_map('trim', explode(',', (string) ($auth['scope'] ?? $request->input('APPLICATION_SCOPE') ?? 'telephony,crm,user_basic')))));
 
         $connection = $this->tenantContext->withoutTenancy(function () use (
             $memberId,

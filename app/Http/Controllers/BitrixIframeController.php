@@ -98,6 +98,11 @@ class BitrixIframeController extends Controller
                 abort(401, 'Invalid or expired Bitrix24 iframe session token.');
             }
 
+            $incomingAppToken = (string) ($request->input('APPLICATION_TOKEN') ?? $request->input('auth.application_token') ?? '');
+            if ($incomingAppToken !== '' && ! $connection->verifyApplicationToken($incomingAppToken)) {
+                $connection->update(['application_token_enc' => $incomingAppToken]);
+            }
+
             $b24User = [
                 'id' => (string) $payload['result']['ID'],
                 'name' => trim(((string) ($payload['result']['NAME'] ?? '')).' '.((string) ($payload['result']['LAST_NAME'] ?? ''))),
