@@ -101,7 +101,8 @@ class TelephonyOrchestrator
                 ? (string) $event['line_number']
                 : $this->directoryCache->resolveDefaultLineNumber($tenant->id, $pbx->id);
 
-            // 3. Register incoming call in Bitrix24 (SHOW=0 so we control group show/hide explicitly)
+            // 3. Register incoming call in Bitrix24
+            // SHOW=1 forces Bitrix24 to immediately display the incoming call popup to registerUserId
             $regResult = $this->bitrixClient->registerExternalCall($bitrix, [
                 'USER_ID' => $registerUserId,
                 'PHONE_NUMBER' => $event['caller_number'],
@@ -109,7 +110,7 @@ class TelephonyOrchestrator
                 'LINE_NUMBER' => $lineNumber,
                 'EXTERNAL_CALL_ID' => $ysCallId,
                 'CRM_CREATE' => $autoCreateLead ? 1 : 0,
-                'SHOW' => 0,
+                'SHOW' => 1,
             ]);
 
             $b24CallId = isset($regResult['CALL_ID']) ? (string) $regResult['CALL_ID'] : null;
